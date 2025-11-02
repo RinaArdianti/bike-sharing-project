@@ -9,7 +9,7 @@ merged_df = pd.read_csv("merged_bike_data_cleaned.csv")
 merged_df['dteday'] = pd.to_datetime(merged_df['dteday'])
 
 # =========================================
-#  MAP KONDISI CUACA
+#  MAPPING KATEGORI
 # =========================================
 weather_labels = {
     1: "Clear / Few Clouds",
@@ -19,7 +19,6 @@ weather_labels = {
 }
 merged_df['weather_desc'] = merged_df['weathersit'].map(weather_labels)
 
-# Mapping season menjadi kategori
 season_labels = {1: "Spring", 2: "Summer", 3: "Fall", 4: "Winter"}
 merged_df['season_cat'] = merged_df['season'].map(season_labels)
 
@@ -28,7 +27,6 @@ merged_df['season_cat'] = merged_df['season'].map(season_labels)
 # =========================================
 st.sidebar.header("Filter Data")
 
-# Filter tanggal
 min_date = merged_df['dteday'].min().date()
 max_date = merged_df['dteday'].max().date()
 
@@ -39,9 +37,11 @@ start_date, end_date = st.sidebar.date_input(
     max_value=max_date
 )
 
-filtered_data = merged_df[(merged_df['dteday'].dt.date >= start_date) & (merged_df['dteday'].dt.date <= end_date)]
+filtered_data = merged_df[
+    (merged_df['dteday'].dt.date >= start_date) & 
+    (merged_df['dteday'].dt.date <= end_date)
+]
 
-# Filter cuaca
 weather_options = st.sidebar.multiselect(
     "Pilih kondisi cuaca",
     options=merged_df['weather_desc'].unique(),
@@ -49,7 +49,6 @@ weather_options = st.sidebar.multiselect(
 )
 filtered_data = filtered_data[filtered_data['weather_desc'].isin(weather_options)]
 
-# Filter musim
 season_options = st.sidebar.multiselect(
     "Pilih musim",
     options=merged_df['season_cat'].unique(),
@@ -57,8 +56,17 @@ season_options = st.sidebar.multiselect(
 )
 filtered_data = filtered_data[filtered_data['season_cat'].isin(season_options)]
 
+# Tambahkan pengecekan filtered_data kosong
+if filtered_data.empty:
+    st.warning("Tidak ada data untuk filter yang dipilih.")
+    st.stop()
+
 # Filter level permintaan
-filtered_data['demand_level'] = pd.qcut(filtered_data['cnt_day'], q=3, labels=['Low','Medium','High'])
+filtered_data['demand_level'] = pd.qcut(
+    filtered_data['cnt_day'], 
+    q=3, 
+    labels=['Low','Medium','High']
+)
 demand_options = st.sidebar.multiselect(
     "Pilih level permintaan",
     options=['Low','Medium','High'],
@@ -120,7 +128,6 @@ st.plotly_chart(fig_hourly, use_container_width=True)
 #  PENYEWAAN BERDASARKAN CUACA
 # =========================================
 st.subheader("🌤 Penyewaan Berdasarkan Kondisi Cuaca")
-
 weather_df = filtered_data.groupby('weather_desc')['cnt_hour'].mean().reset_index()
 weather_df.rename(columns={'cnt_hour':'avg_rentals'}, inplace=True)
 
@@ -140,20 +147,10 @@ fig_weather = px.bar(
 )
 st.plotly_chart(fig_weather, use_container_width=True)
 
-# Insight cuaca
-st.markdown("""
-**Insight:**  
-- Cuaca **Clear/Few Clouds** rata-rata penyewa tertinggi (~204 per jam), menunjukkan cuaca cerah mendorong aktivitas bersepeda.  
-- Cuaca **Mist/Cloudy** moderat (~175 per jam), aktivitas bersepeda sedikit menurun.  
-- Cuaca **Light Snow/Rain** menurun (~111 per jam).  
-- Cuaca **Heavy Rain/Snow/Fog** paling rendah (~74 per jam), cuaca ekstrim menurunkan aktivitas.
-""")
-
 # =========================================
 #  PENYEWAAN BERDASARKAN DEMAND LEVEL & MUSIM
 # =========================================
 st.subheader("📊 Segmentasi Permintaan Berdasarkan Musim")
-
 season_demand = filtered_data.groupby(['season_cat','demand_level'])['cnt_day'].count().reset_index()
 season_demand.rename(columns={'cnt_day':'days_count'}, inplace=True)
 
@@ -169,18 +166,10 @@ fig_season = px.bar(
 )
 st.plotly_chart(fig_season, use_container_width=True)
 
-# Insight musim
-st.markdown("""
-**Insight:**  
-- **Fall & Summer** memiliki jumlah hari permintaan tinggi, aktivitas bersepeda meningkat karena cuaca mendukung.  
-- **Spring & Winter** memiliki jumlah hari permintaan rendah/seimbang, kemungkinan karena cuaca kurang mendukung.
-""")
-
 # =========================================
 #  PENYEWAAN BERDASARKAN DEMAND LEVEL & CUACA
 # =========================================
 st.subheader("📊 Segmentasi Permintaan Berdasarkan Kondisi Cuaca")
-
 weather_demand = filtered_data.groupby(['weather_desc','demand_level'])['cnt_day'].count().reset_index()
 weather_demand.rename(columns={'cnt_day':'days_count'}, inplace=True)
 
@@ -195,13 +184,6 @@ fig_weather2 = px.bar(
     category_orders={'demand_level':['Low','Medium','High'],'weather_desc':sorted(weather_demand['weather_desc'].unique())}
 )
 st.plotly_chart(fig_weather2, use_container_width=True)
-
-# Insight demand level vs cuaca
-st.markdown("""
-**Insight:**  
-- Cuaca **cerah** mendominasi permintaan tinggi.  
-- Cuaca **hujan/salju** cenderung dominan permintaan rendah, menunjukkan cuaca ekstrim mengurangi aktivitas.
-""")
 
 st.markdown("---")
 st.caption("© 2025 Bike Sharing Analysis Dashboard – Dibuat dengan Streamlit & Plotly")
